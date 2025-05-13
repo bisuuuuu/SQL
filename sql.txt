@@ -1,0 +1,162 @@
+-- E-Commerce Database Schema and Sample Data
+-- Drop tables if exist to reset
+DROP TABLE IF EXISTS OrderDetails;
+DROP TABLE IF EXISTS Orders;
+DROP TABLE IF EXISTS Customers;
+DROP TABLE IF EXISTS Employees;
+DROP TABLE IF EXISTS Products;
+DROP TABLE IF EXISTS Categories;
+
+-- Create Categories table
+CREATE TABLE Categories (
+    CategoryID INT PRIMARY KEY AUTO_INCREMENT,
+    CategoryName VARCHAR(100) NOT NULL UNIQUE,
+    Description TEXT
+);
+
+-- Create Products table
+CREATE TABLE Products (
+    ProductID INT PRIMARY KEY AUTO_INCREMENT,
+    ProductName VARCHAR(150) NOT NULL,
+    CategoryID INT,
+    Price DECIMAL(10,2) NOT NULL CHECK (Price >= 0),
+    Stock INT DEFAULT 0 CHECK (Stock >= 0),
+    FOREIGN KEY (CategoryID) REFERENCES Categories(CategoryID) ON DELETE SET NULL
+);
+
+-- Create Customers table
+CREATE TABLE Customers (
+    CustomerID INT PRIMARY KEY AUTO_INCREMENT,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    Email VARCHAR(100) NOT NULL UNIQUE,
+    Phone VARCHAR(20),
+    Address VARCHAR(200),
+    City VARCHAR(100),
+    Country VARCHAR(100)
+);
+
+-- Create Employees table
+CREATE TABLE Employees (
+    EmployeeID INT PRIMARY KEY AUTO_INCREMENT,
+    FirstName VARCHAR(50) NOT NULL,
+    LastName VARCHAR(50) NOT NULL,
+    Email VARCHAR(100) UNIQUE,
+    HireDate DATE NOT NULL,
+    JobTitle VARCHAR(100)
+);
+
+-- Create Orders table
+CREATE TABLE Orders (
+    OrderID INT PRIMARY KEY AUTO_INCREMENT,
+    CustomerID INT NOT NULL,
+    EmployeeID INT,
+    OrderDate DATE NOT NULL,
+    ShippedDate DATE,
+    Status VARCHAR(30) CHECK (Status IN ('Pending','Shipped','Cancelled','Completed')),
+    FOREIGN KEY (CustomerID) REFERENCES Customers(CustomerID) ON DELETE CASCADE,
+    FOREIGN KEY (EmployeeID) REFERENCES Employees(EmployeeID) ON DELETE SET NULL
+);
+
+-- Create OrderDetails table (many-to-many relationship)
+CREATE TABLE OrderDetails (
+    OrderDetailID INT PRIMARY KEY AUTO_INCREMENT,
+    OrderID INT NOT NULL,
+    ProductID INT NOT NULL,
+    Quantity INT NOT NULL CHECK (Quantity > 0),
+    UnitPrice DECIMAL(10,2) NOT NULL CHECK(UnitPrice >= 0),
+    FOREIGN KEY (OrderID) REFERENCES Orders(OrderID) ON DELETE CASCADE,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID) ON DELETE CASCADE
+);
+
+-- Insert sample Categories
+INSERT INTO Categories (CategoryName, Description) VALUES
+('Electronics', 'Electronic devices and gadgets'),
+('Books', 'Various genres of books'),
+('Clothing', 'Men and Women clothing'),
+('Home & Kitchen', 'Household and kitchen items');
+
+-- Insert sample Products
+INSERT INTO Products (ProductName, CategoryID, Price, Stock) VALUES
+('Smartphone Model X', 1, 699.99, 25),
+('Wireless Headphones', 1, 199.99, 50),
+('Programming Book: Learn SQL', 2, 39.99, 100),
+('T-Shirt - Casual', 3, 19.99, 200),
+('Blender', 4, 89.99, 30);
+
+-- Insert sample Customers
+INSERT INTO Customers (FirstName, LastName, Email, Phone, Address, City, Country) VALUES
+('Alice', 'Johnson', 'alice.j@example.com', '123-456-7890', '123 Maple Street', 'New York', 'USA'),
+('Bob', 'Smith', 'bob.smith@example.com', '234-567-8901', '456 Oak Avenue', 'Chicago', 'USA'),
+('Carol', 'Jones', 'carol.jones@example.com', NULL, '789 Pine Road', 'Columbus', 'USA');
+
+-- Insert sample Employees
+INSERT INTO Employees (FirstName, LastName, Email, HireDate, JobTitle) VALUES
+('David', 'Brown', 'david.brown@company.com', '2018-03-15', 'Sales Manager'),
+('Eva', 'Green', 'eva.green@company.com', '2019-07-10', 'Customer Support');
+
+-- Insert sample Orders
+INSERT INTO Orders (CustomerID, EmployeeID, OrderDate, ShippedDate, Status) VALUES
+(1, 1, '2024-04-10', '2024-04-12', 'Completed'),
+(2, 2, '2024-04-15', NULL, 'Pending'),
+(3, 1, '2024-04-17', NULL, 'Pending');
+
+-- Insert sample OrderDetails
+INSERT INTO OrderDetails (OrderID, ProductID, Quantity, UnitPrice) VALUES
+(1, 1, 1, 699.99),
+(1, 2, 2, 199.99),
+(2, 3, 1, 39.99),
+(2, 5, 1, 89.99),
+(3, 4, 3, 19.99);
+
+-- Create a view for order summary per customer
+CREATE OR REPLACE VIEW CustomerOrderSummary AS
+SELECT
+  c.CustomerID,
+  CONCAT(c.FirstName, ' ', c.LastName) AS CustomerName,
+  COUNT(DISTINCT o.OrderID) AS TotalOrders,
+  SUM(od.Quantity * od.UnitPrice) AS TotalSpent
+FROM Customers c
+LEFT JOIN Orders o ON c.CustomerID = o.CustomerID
+LEFT JOIN OrderDetails od ON o.OrderID = od.OrderID
+GROUP BY c.CustomerID, c.FirstName, c.LastName;
+
+-- Stored procedure to get orders by status
+DELIMITER //
+CREATE PROCEDURE GetOrdersByStatus(IN orderStatus VARCHAR(30))
+BEGIN
+  SELECT o.OrderID, CONCAT(c.FirstName, ' ', c.LastName) AS CustomerName, o.OrderDate, o.ShippedDate, o.Status
+  FROM Orders o
+  JOIN Customers c ON o.CustomerID = c.CustomerID
+  WHERE o.Status = orderStatus
+  ORDER BY o.OrderDate DESC;
+END //
+DELIMITER ;
+
+-- Sample query: Find top 3 best-selling products
+-- (Sum of quantity ordered)
+-- To use, just run the below query after loading the schema and data:
+
+/*
+SELECT 
+  p.ProductName, 
+  SUM(od.Quantity) AS TotalSold
+FROM OrderDetails od
+JOIN Products p ON od.ProductID = p.ProductID
+GROUP BY p.ProductName
+ORDER BY TotalSold DESC
+LIMIT 3;
+*/
+
+-- Sample query: Get customer order summary view
+-- SELECT * FROM CustomerOrderSummary ORDER BY TotalSpent DESC;
+
+-- Sample usage of stored procedure:
+-- CALL GetOrdersByStatus('Pending');
+
+-- Indexes for performance (optional)
+CREATE INDEX idx_orders_status ON Orders(Status);
+CREATE INDEX idx_orderdetails_product ON OrderDetails(ProductID);
+CREATE INDEX idx_customers_email ON Customers(Email);
+
+-- End of SQL Project
